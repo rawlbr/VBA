@@ -1,0 +1,174 @@
+'Class for a connection to SQL Server
+Option Compare Database
+Option Explicit
+
+Public adors As New ADODB.Recordset
+Dim adoConn As New ADODB.Connection
+
+Public Sub Class_Initialize()
+
+'Open a Connection to the server
+adoConn.ConnectionString = strConn
+adoConn.Open
+
+
+End Sub
+
+Public Sub Class_Terminate()
+'When the class object terminates, clear the objects.
+
+
+On Error Resume Next
+    adoConn.Close
+    Set adoConn = Nothing
+    adors.Close
+    Set adors = Nothing
+
+End Sub
+
+Public Function OpenADORecordset(ByVal strSQL As String) As Long
+
+On Error GoTo ErrorHandling
+
+'Returns a -1 for records.  0 for no records.
+adors.Open strSQL, adoConn, adOpenStatic, adLockOptimistic
+
+If Not (adors.BOF And adors.EOF) Then
+    adors.MoveFirst
+    OpenADORecordset = -1
+    
+Else
+    OpenADORecordset = 0
+End If
+
+ExitFunction:
+    Exit Function
+ErrorHandling:
+    MsgBox "Error Occurred in clsSQLADO.OpenADORecordset." & vbCrLf & Err.Number & " - " & Err.Description
+    Resume ExitFunction
+End Function
+
+
+Public Function sqlDCount(ByVal CountField As String, ByVal Domain As String, Optional ByVal Criteria As String) As Long
+Dim strSQL As String
+On Error GoTo ErrorHandling
+
+If IsMissing(Criteria) = True Or Criteria = "" Then
+    strSQL = "SELECT Count(" & CountField & ") FROM " & Domain
+Else
+    strSQL = "SELECT Count(" & CountField & ") FROM " & Domain & " WHERE " & Criteria
+End If
+
+
+
+'Returns a # for records.  0 for no records.
+adors.Open strSQL, adoConn, adOpenStatic, adLockOptimistic
+
+If Not (adors.BOF And adors.EOF) Then
+    adors.MoveFirst
+    sqlDCount = adors.Fields(0).Value
+Else
+    sqlDCount = 0
+End If
+
+ExitFunction:
+    On Error Resume Next
+    adors.Close
+    Set adors = Nothing
+    Exit Function
+ErrorHandling:
+    MsgBox "Error Occurred in clsSQLADO.sqlDCount." & vbCrLf & Err.Number & " - " & Err.Description
+    Resume ExitFunction
+End Function
+
+Public Function sqlDMin(ByVal MinField As String, ByVal Domain As String, Optional ByVal Criteria As String) As Long
+Dim strSQL As String
+On Error GoTo ErrorHandling
+
+If IsMissing(Criteria) = True Or Criteria = "" Then
+    strSQL = "SELECT MIN(" & MinField & ") FROM " & Domain
+Else
+    strSQL = "SELECT MIN(" & MinField & ") FROM " & Domain & " WHERE " & Criteria
+End If
+
+'Returns a number for the minimum.  -999 for no records.
+adors.Open strSQL, adoConn, adOpenStatic, adLockOptimistic
+
+If Not (adors.BOF And adors.EOF) Then
+    adors.MoveFirst
+    sqlDMin = adors.Fields(0).Value
+Else
+    sqlDMin = -999
+End If
+
+ExitFunction:
+    On Error Resume Next
+    adors.Close
+    Set adors = Nothing
+    Exit Function
+ErrorHandling:
+    MsgBox "Error Occurred in clsSQLADO.sqlDMin." & vbCrLf & Err.Number & " - " & Err.Description
+    Resume ExitFunction
+End Function
+
+
+Public Function sqlDMax(ByVal MaxField As String, ByVal Domain As String, Optional ByVal Criteria As String) As Long
+Dim strSQL As String
+On Error GoTo ErrorHandling
+
+If IsMissing(Criteria) = True Or Criteria = "" Then
+    strSQL = "SELECT MAX(" & MaxField & ") FROM " & Domain
+Else
+    strSQL = "SELECT MAX(" & MaxField & ") FROM " & Domain & " WHERE " & Criteria
+End If
+
+'Returns a number for the maximum.  -999 for no records.
+adors.Open strSQL, adoConn, adOpenStatic, adLockOptimistic
+
+If Not (adors.BOF And adors.EOF) Then
+    adors.MoveFirst
+    sqlDMax = adors.Fields(0).Value
+Else
+    sqlDMax = -999
+End If
+
+ExitFunction:
+    On Error Resume Next
+    adors.Close
+    Set adors = Nothing
+    Exit Function
+ErrorHandling:
+    MsgBox "Error Occurred in clsSQLADO.sqlDMax." & vbCrLf & Err.Number & " - " & Err.Description
+    Resume ExitFunction
+End Function
+
+Public Function sqlDLookup(ByVal LookupField As String, ByVal Domain As String, ByVal Criteria As String) As String
+Dim strSQL As String
+On Error GoTo ErrorHandling
+
+'There is no optional criteria.  It is a must.
+strSQL = "SELECT " & LookupField & " FROM " & Domain & " WHERE " & Criteria
+
+
+'Returns a number for the maximum.  -999 for no records.
+adors.Open strSQL, adoConn, adOpenStatic, adLockOptimistic
+
+If Not (adors.BOF And adors.EOF) Then
+    adors.MoveFirst
+    sqlDLookup = Nz(adors.Fields(0).Value, "")
+Else
+    sqlDLookup = -999
+End If
+
+ExitFunction:
+    On Error Resume Next
+    adors.Close
+    Set adors = Nothing
+    Exit Function
+ErrorHandling:
+    MsgBox "Error Occurred in clsSQLADO.sqlDLookup." & vbCrLf & Err.Number & " - " & Err.Description
+    Resume ExitFunction
+End Function
+
+
+
