@@ -1,0 +1,123 @@
+'class module for executing stored procedures over ODBC
+Option Compare Database
+Option Explicit
+
+Dim adoConn As New ADODB.Connection
+Dim ADOCmd As New ADODB.Command
+
+Public Sub Class_Initialize()
+
+'Open a Connection to the server
+adoConn.ConnectionString = strConn
+adoConn.Open
+
+End Sub
+
+Public Sub Class_Terminate()
+
+On Error Resume Next
+    adoConn.Close
+    Set adoConn = Nothing
+    Set ADOCmd = Nothing
+
+End Sub
+
+Public Sub CreateProcedure(ByVal strProcName As String)
+
+
+    'Clear the CmD if it exists
+    Set ADOCmd = Nothing
+    'Set the procedure name and connection.
+    ADOCmd.ActiveConnection = adoConn
+    ADOCmd.CommandType = adCmdStoredProc
+    ADOCmd.CommandText = strProcName
+    ADOCmd.CommandTimeout = 600 '10 minutes max until timeout.
+    
+    'Set the first parameter as the Return Parameter
+    ADOCmd.Parameters.Append ADOCmd.CreateParameter("Return", adInteger, adParamReturnValue)
+
+End Sub
+
+Public Sub AddInputParameterInteger(ByVal strParamName As String, ByVal strValue As String, Optional ByVal intLength As Integer)
+
+    If (IsMissing(intLength) = True) Or (intLength = 0) Then
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adInteger, adParamInput, , strValue)
+    Else
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adInteger, adParamInput, intLength, strValue)
+    End If
+
+End Sub
+
+Public Sub AddInputParameterUniqueIdentifier(ByVal strParamName As String, ByVal strValue As String, Optional ByVal intLength As Integer)
+
+    If (IsMissing(intLength) = True) Or (intLength = 0) Then
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adGUID, adParamInput, , strValue)
+    Else
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adGUID, adParamInput, intLength, strValue)
+    End If
+
+End Sub
+Public Sub AddInputParameterNvarchar(ByVal strParamName As String, ByVal strValue As String, Optional ByVal intLength As Integer)
+
+    If (IsMissing(intLength) = True) Or (intLength = 0) Then
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adVarWChar, adParamInput, , strValue)
+    Else
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adVarWChar, adParamInput, intLength, strValue)
+    End If
+
+End Sub
+
+Public Sub AddInputParameterDate(ByVal strParamName As String, ByVal strValue As String, Optional ByVal intLength As Integer)
+
+    If (IsMissing(intLength) = True) Or (intLength = 0) Then
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adDBDate, adParamInput, , strValue)
+    Else
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adDBDate, adParamInput, intLength, strValue)
+    End If
+
+End Sub
+
+Public Sub AddInputParameterDecimal(ByVal strParamName As String, ByVal strValue As String, ByVal intPrecision As Integer, ByVal intScale As Integer)
+
+   
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adDecimal, adParamInput, , strValue)
+        ADOCmd.Parameters(strParamName).Precision = intPrecision
+        ADOCmd.Parameters(strParamName).NumericScale = intScale
+    
+
+End Sub
+Public Sub AddOutputParameterInteger(ByVal strParamName As String, ByVal strValue As String, Optional ByVal intLength As Integer)
+
+    If (IsMissing(intLength) = True) Or (intLength = 0) Then
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adInteger, adParamOutput, , strValue)
+    Else
+        ADOCmd.Parameters.Append ADOCmd.CreateParameter(strParamName, adInteger, adParamOutput, intLength, strValue)
+    End If
+
+End Sub
+
+
+
+Public Function ExecuteProc() As Integer
+
+'Executes the procedure and returns a value for success or failure of the called procedure.
+            ADOCmd.Execute
+            ExecuteProc = ADOCmd.Parameters("Return")
+            
+'It then clears the command out.
+            Set ADOCmd = Nothing
+
+End Function
+
+Public Function ExecuteProcOutputInt() As Integer
+
+'Executes the procedure and returns a value for success or failure of the called procedure.
+            ADOCmd.Execute
+            ExecuteProcOutputInt = ADOCmd.Parameters("@LoadID").Value
+'It then clears the command out.
+            Set ADOCmd = Nothing
+
+End Function
+
+
+
