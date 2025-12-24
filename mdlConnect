@@ -1,0 +1,180 @@
+Option Compare Database
+Option Explicit
+Public Const strConn = "Provider=[ODBC Type]; Data Source=[Server Name]; Initial Catalog=[DB Name]; Integrated Security=SSPI" 'Connection string Windows Security
+Public Const strLinkedTables = "dbo.LinkedTableManager" 'A linked table manager 
+Public Const strFilePathDefault = [Enter in default filepath]
+Public Const intGroup = 1 'This is the value that defines the group in the linked server.
+
+Public Function LookupLinkedTables()
+'//Name     :   LookupLinkedTables
+'//Purpose  :   Use an ADO Recordset to lookup which linked tables to create.
+'//Notes    :   The strConn, strLinkedTables and intGroup Constants are the parameters for this Sub.
+'//             Also, this requires Tools\References\"Microsoft ActiveX Data Objects 6.1 Library" for the ADO Recordset.
+Dim adors As New ADODB.Recordset
+Dim strSQL As String
+Dim blnError As Boolean
+
+On Error GoTo ErrorHandling
+
+blnError = False
+
+' Create the connection string for the server based table that tells which tables to link to.
+strSQL = "SELECT LocalTableName, ServerTableName, ServerName, DatabaseName FROM " & strLinkedTables & _
+         " WHERE GroupID = " & intGroup & " ORDER BY LinkedTableID"
+
+' Open the recordset based on the configuration
+adors.Open strSQL, strConn, adOpenStatic, adLockOptimistic
+
+' Check for records.  If there are none, exit the sub.
+If (adors.BOF = True) Or (adors.EOF = True) Then
+    MsgBox "Can't find any tables. Please contact IT."
+    blnError = True
+    GoTo ExitFunction
+Else
+    adors.MoveFirst
+    
+    'Run through the records in the recordset and create the table definitions.
+    'If it fails, then stop it, otherwise move onto the next record.
+    Do Until adors.EOF
+        If AttachDSNLessTable(adors.Fields(0), adors.Fields(1), adors.Fields(2), adors.Fields(3)) = False Then
+            GoTo ExitFunction
+        Else
+            adors.MoveNext
+        End If
+    Loop
+End If
+
+ExitFunction:
+    On Error Resume Next
+    Set adors = Nothing
+    adors.Close
+    If blnError = True Then Application.Quit
+    Application.RefreshDatabaseWindow  'This was placed here in order to help troubleshoot which table errored out.
+    Exit Function
+ErrorHandling:
+    MsgBox "Error Occurred in LookupLinkedTables" & vbCrLf & Err.Number & " - " & Err.Description
+    Resume ExitFunction
+End Function
+
+
+'//Name     :   AttachDSNLessTable
+'//Purpose  :   Create a linked table to SQL Server without using a DSN
+'//Parameters
+'//     strLocalTableName: Name of the table that you are creating in the current database
+'//     strRemoteTableName: Name of the table that you are linking to on the SQL Server database
+'//     strServer: Name of the SQL Server that you are linking to
+'//     strDatabase: Name of the SQL Server database that you are linking to
+'//     strUsername: Name of the SQL Server user who can connect to SQL Server, leave blank to use a Trusted Connection
+'//     strPassword: SQL Server user password
+Public Function AttachDSNLessTable(strLocalTableName As String, strRemoteTableName As String, strServer As String, strDatabase As String, _
+                                   Optional strUsername As String, Optional strPassword As String) As Boolean
+    On Error GoTo ErrorHandling
+    Dim td As TableDef
+    Dim strConnect As String
+    
+    'Run through the list of current tables and delete any existing linked tables.
+    For Each td In CurrentDb.TableDefs
+        If td.Name = strLocalTableName Then
+            CurrentDb.TableDefs.Delete strLocalTableName
+        End If
+    Next
+      
+    If Len(strUsername) = 0 Then
+        '//Use trusted authentication if stUsername is not supplied.
+        strConnect = "ODBC;DRIVER={SQL Server};SERVER=" & strServer & ";DATABASE=" & strDatabase & ";Trusted_Connection=Yes"
+    Else
+        '//WARNING: This will save the username and the password with the linked table information.
+        strConnect = "ODBC;DRIVER={SQL Server};SERVER=" & strServer & ";DATABASE=" & strDatabase & ";UID=" & strUsername & ";PWD=" & strPassword
+    End If
+    
+    'Create the table definition and append it to the database.
+    Set td = CurrentDb.CreateTableDef(strLocalTableName, dbAttachSavePWD, strRemoteTableName, strConnect)
+    CurrentDb.TableDefs.Append td
+    
+    'Return True if successful
+    AttachDSNLessTable = True
+    Exit Function
+
+ErrorHandling:
+    
+    AttachDSNLessTable = False
+    MsgBox "mdlConnect.AttachDSNLessTable encountered an unexpected error while creating " & strLocalTableName & _
+    vbCrLf & Err.Number & " - " & Err.Description
+
+End Function
+
+Public Function Select_File(InitPath, ActionType, FileType) As String
+    ' Requires reference to Microsoft Office 14.0 Object Library.
+
+    Dim fDialog As Office.FileDialog
+    Dim varFile As Variant
+
+    If ActionType = "FilePicker" Then
+        Set fDialog = Application.FileDialog(msoFileDialogFilePicker)
+        ' Set up the File Dialog.
+    End If
+    If ActionType = "SaveAs" Then
+        Set fDialog = Application.FileDialog(msoFileDialogSaveAs)
+    End If
+    If ActionType = "Open" Then
+        Set fDialog = Application.FileDialog(msoFileDialogOpen)
+    End If
+    With fDialog
+        .AllowMultiSelect = False
+        ' Disallow user to make multiple selections in dialog box
+        .Title = "Please specify the file to save/open..."
+        ' Set the title of the dialog box.
+        If ActionType <> "SaveAs" Then
+            .Filters.Clear
+            ' Clear out the current filters, and add our own.
+            .Filters.Add FileType, "*." & FileType
+        End If
+        .InitialFileName = InitPath
+        ' Show the dialog box. If the .Show method returns True, the
+        ' user picked a file. If the .Show method returns
+        ' False, the user clicked Cancel.
+        If .Show = True Then
+        'Loop through each file selected and add it to our list box.
+            For Each varFile In .SelectedItems
+                'return the subroutine value as the file path & name selected
+                Select_File = varFile
+            Next
+        End If
+    End With
+End Function
+
+
+Public Function ImportFile(strFilePath As String, Optional strLoadTable As String, Optional strSpecName As String) As String
+
+On Error GoTo ErrorHandling
+
+Select Case Right(strFilePath, 3)
+    Case "lsx"
+        DoCmd.TransferSpreadsheet acImport, acSpreadsheetTypeExcel12, strLoadTable, strFilePath, False
+    Case "txt"
+        DoCmd.TransferText acImportDelim, strSpecName, strLoadTable, strFilePath, True
+    Case "csv"
+        DoCmd.TransferText acImportDelim, strSpecName, strLoadTable, strFilePath, True
+    Case "xls"
+        DoCmd.TransferSpreadsheet acImport, acSpreadsheetTypeExcel8, strLoadTable, strFilePath, False
+    Case Else
+        MsgBox "Unknown File Type"
+        ImportFile = "Fail"
+        GoTo ExitFunction
+End Select
+
+ImportFile = "Pass"
+ExitFunction:
+    Exit Function
+ErrorHandling:
+    MsgBox "Error Occurred in mdlConnect.ImportFile" & vbCrLf & Err.Number & " - " & Err.Description
+    ImportFile = "Fail"
+    Resume ExitFunction
+End Function
+
+
+'Use tblTemp for any dynamic local tables created in MS Access.
+Public Sub DeleteTempTable()
+Dim tdf As DAO.TableDef
+If DCount("[Name]", "MSysObjects", "[Name] = 'tblTemp'") = 1 Then CurrentDb.TableDefs.Delete ("tblTemp")
+End Sub
